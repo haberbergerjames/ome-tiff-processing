@@ -7,7 +7,9 @@ authors = [
     { name = "James Haberberger", email = "haberbergerjames@gmail.com" }
 ]
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "ipykernel>=7.4.0",
+]
 
 [project.scripts]
 ome-tiff-processing = "ome_tiff_processing:main"
