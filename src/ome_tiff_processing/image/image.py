@@ -1,6 +1,7 @@
 import zarr
 import pathlib
 import tifffile
+import xarray as xr
 
 class OmeTiffFile:
 
@@ -141,5 +142,7 @@ class OmeTiffLevel:
             ]
 
             array = array.transpose(transpose_order)
+
+        array = xr.DataArray(array, dims=output_shape)
 
         return array
