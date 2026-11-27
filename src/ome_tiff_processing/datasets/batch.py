@@ -16,7 +16,6 @@ class BatchImageGenerator:
         self.image = image
         self.level = level
 
-
     def generate_batch(
         self,
         batch_size=64,
