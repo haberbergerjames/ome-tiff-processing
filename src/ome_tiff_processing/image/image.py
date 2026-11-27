@@ -146,3 +146,17 @@ class OmeTiffLevel:
         array = xr.DataArray(array, dims=output_shape)
 
         return array
+    
+    @property
+    def shape(self):
+        return self.zarr.metadata.shape
+
+    @property
+    def named_shape(self):
+        dims = self.zarr.metadata.dimension_names
+
+        return {
+            self._dimension_name_mapping[x]: s
+            for x,s 
+            in zip(dims, self.shape)
+        }
