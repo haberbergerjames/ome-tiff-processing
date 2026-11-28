@@ -1,7 +1,6 @@
 import re
 import webbrowser
 import threading
-from queue import Queue
 
 import numpy as np
 import xarray as xr
@@ -15,7 +14,11 @@ class ROISelectionTool:
     def __init__(self, image):
         self.image = image
 
-        self.roi_results = Queue()
+        # Polygon Path Exports.
+        self._polygon_paths = None
+        self._export_event = threading.Event()
+        self._export_lock = threading.Lock()
+
         self.app = None
         self._server_thread = None
 
@@ -86,13 +89,18 @@ class ROISelectionTool:
         )
         def export_rois(n_clicks, polygons):
 
-            self.roi_results.put(polygons)
+            with self._export_lock:
+                self._polygon_paths = list(polygons)
+                self._export_event.set()
 
             return f"Exported {len(polygons)} regions"
 
         return app
 
     def serve(self, reference_level=3, port=8050):
+
+        if self._server_thread is not None and self._server_thread.is_alive():
+            raise RuntimeError("ROI selector is already running.")
 
         self.reference_level = reference_level
 
@@ -103,8 +111,10 @@ class ROISelectionTool:
 
         self.app = self.generate_dash_app(np.asarray(image))
 
+        app = self.app
+
         self._server_thread = threading.Thread(
-            target=lambda: self.app.run(
+            target=lambda: app.run(
                 host="127.0.0.1",
                 port=port,
                 debug=False,
@@ -176,7 +186,11 @@ class ROISelectionTool:
 
     def get_polygons(self, target_level=0, timeout=None):
 
-        paths = self.roi_results.get(timeout=timeout)
+        if not self._export_event.wait(timeout=timeout):
+            raise TimeoutError("No ROI export has been received.")
+
+        with self._export_lock:
+            paths = self._polygon_paths.copy()
 
         polygons = [
             self.parse_polygon(path)
@@ -189,14 +203,19 @@ class ROISelectionTool:
             target_level
         )
 
-        return [
+        polygon_data_arrays = [
             xr.DataArray(
                 polygon,
                 dims=("vertex", "coordinate"),
-                coords={
-                    "coordinate": ["X", "Y"],
-                },
+                coords={"coordinate": ["X", "Y"]},
                 name=f"ROI_{i}"
             )
             for i, polygon in enumerate(polygons)
         ]
+
+        return xr.Dataset({
+            f"roi_{i}": arr.rename({
+                "vertex": f"vertex_{i}"
+            })
+            for i, arr in enumerate(polygon_data_arrays)
+        })
